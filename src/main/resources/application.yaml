@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: hookforge-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/hookforge}
+    username: ${DB_USERNAME:hookforge}
+    password: ${DB_PASSWORD:hookforge}
+
+  jpa:
+    open-in-view: false
