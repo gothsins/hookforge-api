@@ -36,4 +36,8 @@ public class WebhookEndpoint {
         this.active = true;
         this.createdAt = Instant.now();
     }
+
+    public static WebhookEndpoint create(String name, String url) {
+        return new WebhookEndpoint(name.trim(), url.trim());
+    }
 }
