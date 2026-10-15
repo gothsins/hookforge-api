@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -30,14 +31,18 @@ public class WebhookEndpoint {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected WebhookEndpoint(String name, String url) {
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
+    protected WebhookEndpoint(String name, String url, UUID ownerId) {
         this.name = name;
         this.url = url;
+        this.ownerId = Objects.requireNonNull(ownerId);
         this.active = true;
         this.createdAt = Instant.now();
     }
 
-    public static WebhookEndpoint create(String name, String url) {
-        return new WebhookEndpoint(name.trim(), url.trim());
+    public static WebhookEndpoint create(String name, String url, UUID ownerId) {
+        return new WebhookEndpoint(name.trim(), url.trim(), ownerId);
     }
 }

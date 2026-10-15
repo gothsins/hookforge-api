@@ -18,11 +18,12 @@ public class EventService {
     private final EventRepository repository;
 
     @Transactional
-    public EventResponse create(CreateEventRequest request) {
+    public EventResponse create(UUID ownerId, CreateEventRequest request) {
 
         Event event = Event.create(
                 request.type(),
-                request.payload()
+                request.payload(),
+                ownerId
         );
 
         Event saved = repository.save(event);
@@ -31,17 +32,17 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findAll() {
-        return repository.findAll()
+    public List<EventResponse> findAll(UUID ownerId) {
+        return repository.findAllByOwnerId(ownerId)
                 .stream()
                 .map(EventResponse::from)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public EventResponse findById(UUID id) {
+    public EventResponse findById(UUID ownerId, UUID id) {
 
-        Event event = repository.findById(id)
+        Event event = repository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Event not found"

@@ -1,6 +1,9 @@
 package io.github.gothsins.hookforge.event;
 
 import io.github.gothsins.hookforge.AbstractIntegrationTest;
+import io.github.gothsins.hookforge.auth.AuthService;
+import io.github.gothsins.hookforge.auth.dto.AuthResponse;
+import io.github.gothsins.hookforge.auth.dto.RegisterRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +29,17 @@ class EventControllerIT extends AbstractIntegrationTest {
     @Autowired
     private EventRepository repository;
 
+    @Autowired
+    private AuthService authService;
+
+    private String authorization;
+
     @BeforeEach
     void cleanDatabase() {
         repository.deleteAll();
+        AuthResponse auth = authService.register(new RegisterRequest(
+                UUID.randomUUID() + "@example.com", "test-password-123"));
+        authorization = "Bearer " + auth.token();
     }
 
     @Test
@@ -45,6 +56,7 @@ class EventControllerIT extends AbstractIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/v1/events")
+                        .header("Authorization", authorization)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated())
@@ -69,6 +81,7 @@ class EventControllerIT extends AbstractIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/v1/events")
+                        .header("Authorization", authorization)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isBadRequest());
@@ -81,7 +94,8 @@ class EventControllerIT extends AbstractIntegrationTest {
 
         UUID unknownId = UUID.randomUUID();
 
-        mockMvc.perform(get("/api/v1/events/{id}", unknownId))
+        mockMvc.perform(get("/api/v1/events/{id}", unknownId)
+                        .header("Authorization", authorization))
                 .andExpect(status().isNotFound());
     }
 }

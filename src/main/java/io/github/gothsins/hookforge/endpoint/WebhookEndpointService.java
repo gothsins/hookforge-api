@@ -20,26 +20,26 @@ public class WebhookEndpointService {
 
     private final WebhookEndpointRepository repository;
 
-    public WebhookEndpointResponse create(CreateWebhookEndpointRequest request) {
+    public WebhookEndpointResponse create(UUID ownerId, CreateWebhookEndpointRequest request) {
         validateUrl(request.url());
 
         WebhookEndpoint endpoint =
-                WebhookEndpoint.create(request.name(), request.url());
+                WebhookEndpoint.create(request.name(), request.url(), ownerId);
 
         WebhookEndpoint saved = repository.save(endpoint);
 
         return WebhookEndpointResponse.from(saved);
     }
 
-    public List<WebhookEndpointResponse> findAll() {
-        return repository.findAll()
+    public List<WebhookEndpointResponse> findAll(UUID ownerId) {
+        return repository.findAllByOwnerId(ownerId)
                 .stream()
                 .map(WebhookEndpointResponse::from)
                 .toList();
     }
 
-    public WebhookEndpointResponse findById(UUID id) {
-        WebhookEndpoint endpoint = repository.findById(id)
+    public WebhookEndpointResponse findById(UUID ownerId, UUID id) {
+        WebhookEndpoint endpoint = repository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Webhook endpoint not found"
