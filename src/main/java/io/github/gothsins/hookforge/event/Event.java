@@ -36,18 +36,27 @@ public class Event {
     @Column(name = "owner_id")
     private UUID ownerId;
 
-    private Event(String eventType, Map<String, Object> payload, UUID ownerId) {
+    @Column(name = "idempotency_key", length = 128, updatable = false)
+    private String idempotencyKey;
+
+    private Event(String eventType, Map<String, Object> payload, UUID ownerId, String idempotencyKey) {
         this.eventType = eventType.trim();
         this.payload = new LinkedHashMap<>(payload);
         this.ownerId = Objects.requireNonNull(ownerId);
+        this.idempotencyKey = idempotencyKey;
         this.receivedAt = Instant.now();
     }
 
     public static Event create(
             String eventType,
             Map<String, Object> payload,
-            UUID ownerId
+            UUID ownerId,
+            String idempotencyKey
     ) {
-        return new Event(eventType, payload, ownerId);
+        return new Event(eventType, payload, ownerId, idempotencyKey);
+    }
+
+    public static Event create(String eventType, Map<String, Object> payload, UUID ownerId) {
+        return create(eventType, payload, ownerId, null);
     }
 }

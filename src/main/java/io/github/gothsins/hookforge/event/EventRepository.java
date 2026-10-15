@@ -10,4 +10,5 @@ public interface EventRepository
         extends JpaRepository<Event, UUID> {
     List<Event> findAllByOwnerId(UUID ownerId);
     Optional<Event> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<Event> findByOwnerIdAndIdempotencyKey(UUID ownerId, String idempotencyKey);
 }
