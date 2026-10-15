@@ -2,7 +2,7 @@ package io.github.gothsins.hookforge;
 
 import org.junit.jupiter.api.Test;
 
-class HookforgeApiApplicationTests extends AbstractIntegrationTest {
+class HookforgeApiApplicationIT extends AbstractIntegrationTest {
 
 	@Test
 	void contextLoads() {
