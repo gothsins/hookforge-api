@@ -4,6 +4,7 @@ import io.github.gothsins.hookforge.event.dto.CreateEventRequest;
 import io.github.gothsins.hookforge.event.dto.EventResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -22,17 +23,20 @@ public class EventController {
     @PostMapping
     public ResponseEntity<EventResponse> create(
             @AuthenticationPrincipal UUID ownerId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreateEventRequest request
     ) {
 
-        EventResponse response = service.create(ownerId, request);
+        EventService.Creation result = service.create(ownerId, request, idempotencyKey);
+        EventResponse response = result.response();
 
         URI location = URI.create(
                 "/api/v1/events/" + response.id()
         );
 
         return ResponseEntity
-                .created(location)
+                .status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED)
+                .location(location)
                 .body(response);
     }
 
