@@ -16,6 +16,7 @@ import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -34,6 +35,22 @@ public class DeliveryDispatcher {
         if (delivery.getStatus() != DeliveryStatus.PENDING && delivery.getStatus() != DeliveryStatus.FAILED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Delivery cannot be dispatched");
         }
+        return send(ownerId, delivery);
+    }
+
+    @Transactional
+    public boolean dispatchDue(UUID ownerId, UUID id) {
+        Delivery delivery = deliveries.findLocked(id, ownerId).orElse(null);
+        if (delivery == null || (delivery.getStatus() != DeliveryStatus.PENDING
+                && delivery.getStatus() != DeliveryStatus.FAILED)
+                || delivery.getNextAttemptAt() == null || delivery.getNextAttemptAt().isAfter(Instant.now())) {
+            return false;
+        }
+        send(ownerId, delivery);
+        return true;
+    }
+
+    private DeliveryResponse send(UUID ownerId, Delivery delivery) {
         Event event = events.findByIdAndOwnerId(delivery.getEventId(), ownerId).orElseThrow();
         byte[] body = json.writeValueAsBytes(Map.of(
                 "id", event.getId(), "type", event.getEventType(), "payload", event.getPayload()));
@@ -71,8 +88,12 @@ public class DeliveryDispatcher {
         if (delivery.getAttemptCount() >= 4 && result == DeliveryStatus.FAILED) {
             result = DeliveryStatus.DEAD;
         }
-        delivery.completeAttempt(result, httpStatus, now);
-        attempts.save(DeliveryAttempt.record(id, delivery.getAttemptCount(), httpStatus, duration, error, now));
+        Instant retryAt = result == DeliveryStatus.FAILED
+                ? now.plusSeconds((30L << delivery.getAttemptCount()) + ThreadLocalRandom.current().nextLong(11))
+                : null;
+        delivery.completeAttempt(result, httpStatus, now, retryAt);
+        attempts.save(DeliveryAttempt.record(delivery.getId(), delivery.getAttemptCount(),
+                httpStatus, duration, error, now));
         return DeliveryResponse.from(delivery);
     }
 }
