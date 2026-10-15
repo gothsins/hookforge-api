@@ -38,8 +38,17 @@ public class Delivery {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
-    @Column(name = "next_attempt_at", nullable = false)
+    @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
+
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "last_http_status")
+    private Integer lastHttpStatus;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -64,5 +73,21 @@ public class Delivery {
 
     public static Delivery pending(Event event, WebhookEndpoint endpoint, Instant now) {
         return new Delivery(event, endpoint, now);
+    }
+
+    public void completeAttempt(DeliveryStatus result, Integer httpStatus, Instant at) {
+        if (status != DeliveryStatus.PENDING && status != DeliveryStatus.FAILED) {
+            throw new IllegalStateException("Delivery is not dispatchable");
+        }
+        if (result == DeliveryStatus.PENDING) {
+            throw new IllegalArgumentException("Attempt must have a final result");
+        }
+        status = result;
+        attemptCount++;
+        lastAttemptAt = at;
+        lastHttpStatus = httpStatus;
+        deliveredAt = result == DeliveryStatus.SUCCEEDED ? at : null;
+        nextAttemptAt = null;
+        updatedAt = at;
     }
 }

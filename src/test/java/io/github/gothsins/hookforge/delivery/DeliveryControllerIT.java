@@ -97,6 +97,29 @@ class DeliveryControllerIT extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void privateDestinationIsRejectedAndRecordedWithoutConnecting() throws Exception {
+        AuthResponse owner = register();
+        endpoints.save(WebhookEndpoint.create("Private", "http://127.0.0.1/", owner.accountId()));
+        String response = mockMvc.perform(post("/api/v1/events")
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"private.target\",\"payload\":{}}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID eventId = UUID.fromString(JsonPath.read(response, "$.id"));
+        UUID deliveryId = deliveries.findAllByOwnerIdAndEventIdOrderByCreatedAtDesc(owner.accountId(), eventId)
+                .getFirst().getId();
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/dispatch", deliveryId)
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DEAD"));
+        mockMvc.perform(get("/api/v1/deliveries/{id}/attempts", deliveryId)
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].errorCategory").value("BLOCKED_ADDRESS"));
+    }
+
     private AuthResponse register() {
         return authService.register(new RegisterRequest(
                 UUID.randomUUID() + "@example.com", "test-password-123"));

@@ -1,6 +1,7 @@
 package io.github.gothsins.hookforge;
 
 import io.github.gothsins.hookforge.delivery.DeliveryRepository;
+import io.github.gothsins.hookforge.delivery.DeliveryAttemptRepository;
 import io.github.gothsins.hookforge.endpoint.WebhookEndpointRepository;
 import io.github.gothsins.hookforge.event.EventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,11 +18,13 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public abstract class AbstractIntegrationTest {
 
     @Autowired private DeliveryRepository deliveries;
+    @Autowired private DeliveryAttemptRepository attempts;
     @Autowired private EventRepository events;
     @Autowired private WebhookEndpointRepository endpoints;
 
     @BeforeEach
     void clearResources() {
+        attempts.deleteAll();
         deliveries.deleteAll();
         events.deleteAll();
         endpoints.deleteAll();

@@ -13,10 +13,14 @@ public record DeliveryResponse(
         DeliveryStatus status,
         int attemptCount,
         Instant nextAttemptAt,
-        Instant createdAt
+        Instant createdAt,
+        Instant lastAttemptAt,
+        Instant deliveredAt,
+        Integer lastHttpStatus
 ) {
     public static DeliveryResponse from(Delivery delivery) {
         return new DeliveryResponse(delivery.getId(), delivery.getEventId(), delivery.getEndpointId(),
-                delivery.getStatus(), delivery.getAttemptCount(), delivery.getNextAttemptAt(), delivery.getCreatedAt());
+                delivery.getStatus(), delivery.getAttemptCount(), delivery.getNextAttemptAt(), delivery.getCreatedAt(),
+                delivery.getLastAttemptAt(), delivery.getDeliveredAt(), delivery.getLastHttpStatus());
     }
 }
