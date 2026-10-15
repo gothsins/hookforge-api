@@ -34,7 +34,6 @@ class WebhookEndpointControllerIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        repository.deleteAll();
         AuthResponse auth = authService.register(new RegisterRequest(
                 UUID.randomUUID() + "@example.com", "test-password-123"));
         authorization = "Bearer " + auth.token();
