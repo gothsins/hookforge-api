@@ -10,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -32,16 +33,21 @@ public class Event {
     @Column(name = "received_at", nullable = false, updatable = false)
     private Instant receivedAt;
 
-    private Event(String eventType, Map<String, Object> payload) {
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
+    private Event(String eventType, Map<String, Object> payload, UUID ownerId) {
         this.eventType = eventType.trim();
         this.payload = new LinkedHashMap<>(payload);
+        this.ownerId = Objects.requireNonNull(ownerId);
         this.receivedAt = Instant.now();
     }
 
     public static Event create(
             String eventType,
-            Map<String, Object> payload
+            Map<String, Object> payload,
+            UUID ownerId
     ) {
-        return new Event(eventType, payload);
+        return new Event(eventType, payload, ownerId);
     }
 }

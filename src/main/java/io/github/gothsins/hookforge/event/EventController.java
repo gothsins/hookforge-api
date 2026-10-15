@@ -5,6 +5,7 @@ import io.github.gothsins.hookforge.event.dto.EventResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -20,10 +21,11 @@ public class EventController {
 
     @PostMapping
     public ResponseEntity<EventResponse> create(
+            @AuthenticationPrincipal UUID ownerId,
             @Valid @RequestBody CreateEventRequest request
     ) {
 
-        EventResponse response = service.create(request);
+        EventResponse response = service.create(ownerId, request);
 
         URI location = URI.create(
                 "/api/v1/events/" + response.id()
@@ -35,14 +37,15 @@ public class EventController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EventResponse>> findAll() {
-        return ResponseEntity.ok(service.findAll());
+    public ResponseEntity<List<EventResponse>> findAll(@AuthenticationPrincipal UUID ownerId) {
+        return ResponseEntity.ok(service.findAll(ownerId));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<EventResponse> findById(
+            @AuthenticationPrincipal UUID ownerId,
             @PathVariable UUID id
     ) {
-        return ResponseEntity.ok(service.findById(id));
+        return ResponseEntity.ok(service.findById(ownerId, id));
     }
 }
