@@ -165,6 +165,20 @@ class EventControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void oversizedJsonBodyIsRejectedBeforePersistence() throws Exception {
+        String request = "{\"type\":\"large.event\",\"payload\":{\"data\":\""
+                + "a".repeat(65_536) + "\"}}";
+
+        mockMvc.perform(post("/api/v1/events")
+                        .header("Authorization", authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isPayloadTooLarge());
+
+        assertThat(repository.count()).isZero();
+    }
+
+    @Test
     void concurrentRequestsWithSameKeyCreateOnlyOneEvent() throws Exception {
         endpoints.save(WebhookEndpoint.create("Destination", "https://receiver.example/hook", ownerId));
         CountDownLatch start = new CountDownLatch(1);
