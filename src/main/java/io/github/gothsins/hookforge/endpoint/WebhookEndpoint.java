@@ -45,4 +45,8 @@ public class WebhookEndpoint {
     public static WebhookEndpoint create(String name, String url, UUID ownerId) {
         return new WebhookEndpoint(name.trim(), url.trim(), ownerId);
     }
+
+    public void deactivate() {
+        this.active = false;
+    }
 }

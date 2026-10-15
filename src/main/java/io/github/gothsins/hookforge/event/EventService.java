@@ -1,5 +1,6 @@
 package io.github.gothsins.hookforge.event;
 
+import io.github.gothsins.hookforge.delivery.DeliveryService;
 import io.github.gothsins.hookforge.event.dto.CreateEventRequest;
 import io.github.gothsins.hookforge.event.dto.EventResponse;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class EventService {
 
     private final EventRepository repository;
+    private final DeliveryService deliveryService;
 
     @Transactional
     public EventResponse create(UUID ownerId, CreateEventRequest request) {
@@ -27,6 +29,7 @@ public class EventService {
         );
 
         Event saved = repository.save(event);
+        deliveryService.createPendingFor(saved);
 
         return EventResponse.from(saved);
     }
