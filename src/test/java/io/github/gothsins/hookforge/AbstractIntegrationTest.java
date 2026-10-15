@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-@SpringBootTest
+@SpringBootTest(properties = "hookforge.dispatch.enabled=false")
 @Import(AbstractIntegrationTest.Containers.class)
 public abstract class AbstractIntegrationTest {
 

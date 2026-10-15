@@ -75,19 +75,22 @@ public class Delivery {
         return new Delivery(event, endpoint, now);
     }
 
-    public void completeAttempt(DeliveryStatus result, Integer httpStatus, Instant at) {
+    public void completeAttempt(DeliveryStatus result, Integer httpStatus, Instant at, Instant nextAttempt) {
         if (status != DeliveryStatus.PENDING && status != DeliveryStatus.FAILED) {
             throw new IllegalStateException("Delivery is not dispatchable");
         }
         if (result == DeliveryStatus.PENDING) {
             throw new IllegalArgumentException("Attempt must have a final result");
         }
+        if ((result == DeliveryStatus.FAILED) != (nextAttempt != null)) {
+            throw new IllegalArgumentException("Only retryable failures have a next attempt");
+        }
         status = result;
         attemptCount++;
         lastAttemptAt = at;
         lastHttpStatus = httpStatus;
         deliveredAt = result == DeliveryStatus.SUCCEEDED ? at : null;
-        nextAttemptAt = null;
+        nextAttemptAt = nextAttempt;
         updatedAt = at;
     }
 }

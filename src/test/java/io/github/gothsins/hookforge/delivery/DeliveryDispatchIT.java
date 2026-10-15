@@ -11,17 +11,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -39,6 +44,9 @@ class DeliveryDispatchIT extends AbstractIntegrationTest {
     @Autowired DeliveryRepository deliveries;
     @Autowired DeliveryAttemptRepository attempts;
     @Autowired DeliveryDispatcher dispatcher;
+    @Autowired DeliveryRetryWorker worker;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactionManager;
     @MockitoBean WebhookHttpClient http;
 
     @Test
@@ -117,6 +125,69 @@ class DeliveryDispatchIT extends AbstractIntegrationTest {
         assertThat(second.get(5, TimeUnit.SECONDS)).isInstanceOf(ResponseStatusException.class);
         verify(http, times(1)).post(eq("https://concurrent.example/hook"), any(byte[].class));
         assertThat(attempts.count()).isEqualTo(1);
+    }
+
+    @Test
+    void workerRetriesOnlyWhenDueAndRecordsBackoff() throws Exception {
+        AuthResponse owner = register();
+        UUID id = createDelivery(owner, "https://scheduled.example/hook");
+        when(http.post(eq("https://scheduled.example/hook"), any(byte[].class)))
+                .thenReturn(503, 204);
+        Instant before = Instant.now();
+
+        assertThat(worker.processDue()).isEqualTo(1);
+        Delivery failed = deliveries.findById(id).orElseThrow();
+        assertThat(failed.getStatus()).isEqualTo(DeliveryStatus.FAILED);
+        assertThat(failed.getNextAttemptAt()).isBetween(before.plusSeconds(30), Instant.now().plusSeconds(41));
+        assertThat(worker.processDue()).isZero();
+
+        jdbc.update("UPDATE deliveries SET next_attempt_at = NOW() - INTERVAL '1 second' WHERE id = ?", id);
+        assertThat(worker.processDue()).isEqualTo(1);
+        Delivery succeeded = deliveries.findById(id).orElseThrow();
+        assertThat(succeeded.getStatus()).isEqualTo(DeliveryStatus.SUCCEEDED);
+        assertThat(succeeded.getAttemptCount()).isEqualTo(2);
+        assertThat(succeeded.getNextAttemptAt()).isNull();
+        assertThat(attempts.findAllByDeliveryIdOrderByAttemptNumberDesc(id)).hasSize(2);
+    }
+
+    @Test
+    void uncommittedSendIsRecoveredAfterRollback() throws Exception {
+        AuthResponse owner = register();
+        UUID id = createDelivery(owner, "https://recovery.example/hook");
+        when(http.post(eq("https://recovery.example/hook"), any(byte[].class))).thenReturn(204);
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(ignored -> {
+            dispatcher.dispatch(owner.accountId(), id);
+            throw new IllegalStateException("simulate process stop before commit");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(deliveries.findById(id).orElseThrow().getStatus()).isEqualTo(DeliveryStatus.PENDING);
+        assertThat(attempts.findAllByDeliveryIdOrderByAttemptNumberDesc(id)).isEmpty();
+
+        assertThat(worker.processDue()).isEqualTo(1);
+        assertThat(deliveries.findById(id).orElseThrow().getStatus()).isEqualTo(DeliveryStatus.SUCCEEDED);
+        verify(http, times(2)).post(eq("https://recovery.example/hook"), any(byte[].class));
+    }
+
+    @Test
+    void fifthTransientFailureEndsDelivery() throws Exception {
+        AuthResponse owner = register();
+        UUID id = createDelivery(owner, "https://always-failing.example/hook");
+        when(http.post(eq("https://always-failing.example/hook"), any(byte[].class))).thenReturn(503);
+
+        for (int number = 1; number <= 5; number++) {
+            assertThat(worker.processDue()).isEqualTo(1);
+            Delivery current = deliveries.findById(id).orElseThrow();
+            assertThat(current.getAttemptCount()).isEqualTo(number);
+            if (number < 5) {
+                assertThat(current.getStatus()).isEqualTo(DeliveryStatus.FAILED);
+                jdbc.update("UPDATE deliveries SET next_attempt_at = NOW() - INTERVAL '1 second' WHERE id = ?", id);
+            } else {
+                assertThat(current.getStatus()).isEqualTo(DeliveryStatus.DEAD);
+                assertThat(current.getNextAttemptAt()).isNull();
+            }
+        }
+        assertThat(worker.processDue()).isZero();
+        assertThat(attempts.findAllByDeliveryIdOrderByAttemptNumberDesc(id)).hasSize(5);
     }
 
     private UUID createDelivery(AuthResponse owner, String url) throws Exception {
